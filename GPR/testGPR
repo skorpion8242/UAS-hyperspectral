@@ -1,0 +1,80 @@
+clc
+clear
+
+soilMoistureMatrix = readtable("soilmoisture_dataset.csv");
+load('SoilMoistureTraining2.mat')
+load('workspace6_26_25.mat')
+
+moisture = soilMoistureMatrix{2:end, 3};  % Extract as numeric column vector
+signals = table2array(soilMoistureMatrix(2:end,5:end));
+[trainedModel, validationRMSE] = samplesignalsGPR(signals, moisture);
+fprintf('Validation RMSE: %.4f\n', validationRMSE)
+
+
+function [trainedModel, validationRMSE] = samplesignalsGPR(trainingData, moisture)
+
+    numFeatures = size(trainingData, 2);
+    variableNames = strcat("feature", string(1:numFeatures));
+
+    % Create input table for regression
+    inputTable = array2table(trainingData, 'VariableNames', variableNames);
+    inputTable.Moisture = moisture(:);  % Ensure it's a column vector
+
+    % Split data into training and validation sets
+    cv = cvpartition(height(inputTable), 'HoldOut', 0.2);
+    trainingSet = inputTable(training(cv), :);
+    validationSet = inputTable(test(cv), :);
+
+    % training section
+    gprModel = fitrgp(trainingSet(:, 1:end-1), trainingSet.Moisture, 'KernelFunction', 'squaredexponential', 'Standardize', true);
+
+    % Predicting
+    predictedMoisture = predict(gprModel, validationSet(:, 1:end-1));
+
+    % Calculate RMSE
+    validationRMSE = sqrt(mean((predictedMoisture - validationSet.Moisture).^2));
+
+    trainedModel.PredictFunction = @(x) predict(gprModel, x);
+    trainedModel.RegressionModel = gprModel;
+    trainedModel.RequiredVariables = variableNames;
+    partitionedModel = crossval(gprModel, 'KFold', 5);
+    validationRMSE = sqrt(kfoldLoss(partitionedModel));
+    validationPredictions = kfoldPredict(partitionedModel);
+     
+    % Plot 1 Actual vs Predicted
+    figure(1)
+    scatter(validationSet.Moisture, predictedMoisture, 'filled');
+    hold on;
+    plot([min(validationSet.Moisture), max(validationSet.Moisture)], [min(validationSet.Moisture), max(validationSet.Moisture)], 'r--', 'LineWidth', 1.5);
+    xlabel('Actual Moisture');
+    ylabel('Predicted Moisture');
+    title(sprintf('Actual vs Predicted Moisture | RMSE = %.4f', validationRMSE));
+    legend('Predicted', 'Perfect Prediction', 'Location', 'northwest');
+    grid on;
+    hold off;
+
+    % Plot 2 Sample-wise Prediction
+    figure(2)
+    plot(validationSet.Moisture, 'b-', 'LineWidth', 1.5);
+    hold on;
+    plot(predictedMoisture, 'r-', 'LineWidth', 1.5);
+    xlabel('Sample Index');
+    ylabel('Moisture');
+    title('Actual vs Predicted Moisture');
+    legend('Actual', 'Predicted', 'Location', 'northwest');
+    grid on;
+    hold off;
+
+
+    % Plot 3 Residuals
+    residuals = validationSet.Moisture - predictedMoisture;
+    figure(3)
+    scatter(1:length(residuals), residuals, 'filled');
+    hold on;
+    plot([1, length(residuals)], [0, 0], 'k--', 'LineWidth', 1.5);
+    xlabel('Sample Index');
+    ylabel('Residual');
+    title('Prediction Residuals');
+    grid on;
+    hold off;
+end
