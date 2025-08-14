@@ -28,11 +28,11 @@ end
 
 %% Training Section
 % Train a model using the random pixels and moisture content
-  meanfunc = {@meanSum, {@meanLinear, @meanConst}}; %hyp.mean = [0.5; 1];
-  covfunc = {@covRQiso}; %ell = 1/4; sf = 1; hyp.cov = log([ell; sf]);
+  meanfunc = []; %hyp.mean = [0.5; 1];
+  covfunc = {@covSum, {{@covMaternard, 1}, @covNoise}}; %ell = 1/4; sf = 1; hyp.cov = log([ell; sf]);
   likfunc = @likGauss; %sn = 0.1; hyp.lik = log(sn);
 
-hyp.cov = [0;0;0]; hyp.mean = zeros(126,1); hyp.lik = log(0.1);
+hyp.cov = zeros(numBands+2,1); hyp.mean = []; hyp.lik = log(0.1);
 hyp = minimize(hyp, @gp, -100, @infGaussLik, meanfunc, covfunc, likfunc, randPixels, randMoisture);
  
 nlml = gp(hyp, @infGaussLik, meanfunc, covfunc, likfunc, randPixels, randMoisture);
@@ -55,7 +55,7 @@ end
 
 inputs = zeros(testPix,numBands); actualResult = zeros(testPix,1);
 for c = 1:testPix
-    inputs(c,:) = signals(c,:);
+    inputs(c,:) = signals(test(c),:);
     actualResult(c) = moisture(test(c));
 end
 
@@ -71,4 +71,4 @@ for a = 1:testPix
     testResult(a) = predict(Mdl,signals(test(a),:));
 end
 
-errorArdExp = rmse(actualResult,testResult);
+errorRQ = rmse(actualResult,testResult);
