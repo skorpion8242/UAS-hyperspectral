@@ -66,11 +66,11 @@ end
 error(smooth) = rmse(actualResult, m);
 end
 
-fprintf('Smallest RMSE: %f', min(error))
+fprintf('Smallest RMSE: %f' min(error))
 
 %% Other Method for Comparison (Best model so far)
 
-Mdl = fitrgp(randPixels,randMoisture,'KernelFunction','ardexponential','FitMethod','sr');
+Mdl = fitrgp(randPixels,randMoisture,'KernelFunction','rationalquadratic','FitMethod','sr');
 testResult = zeros(testPix,1);
 for a = 1:testPix
     testResult(a) = predict(Mdl,signals(test(a),:));
